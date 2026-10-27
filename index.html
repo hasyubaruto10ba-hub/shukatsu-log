@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>就活ログ</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="就活ログ">
+<meta name="theme-color" content="#F1F0EA" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#13161A" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-512.png">
+<style>
+/* Layout: 片手で操作するタイマーを最上部に置き、今日→7日の積み上げ棒→週のふりかえり→記録の順に縦に積む単一カラム。色はカテゴリの意味だけに使う */
+:root {
+  --bg: #F1F0EA;
+  --surface: #FBFAF6;
+  --ink: #181B1F;
+  --muted: #666B70;
+  --line: #D8D6CC;
+  --weekend: #E6E4DA;
+  --c-es: #2F5BD3;
+  --c-test: #1E8C5A;
+  --c-men: #D9620F;
+  --c-kig: #8A4FBF;
+  --on-c: #FFFFFF;
+  --good: #1D7A4D;
+  --font-body: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
+  --font-num: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #13161A; --surface: #1B1F24; --ink: #E8E9E5; --muted: #9096A0; --line: #2C3238; --weekend: #1F242A;
+    --c-es: #7C9BFF; --c-test: #4CC38A; --c-men: #FF9A4D; --c-kig: #BE93EE; --on-c: #12151A; --good: #5CC893;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body);
+  font-size: 15px; line-height: 1.6; -webkit-tap-highlight-color: transparent;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-top: max(16px, env(safe-area-inset-top, 0px));
+  padding-bottom: max(40px, env(safe-area-inset-bottom, 0px));
+}
+.wrap { max-width: 540px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+.eyebrow { margin: 0; color: var(--muted); font-size: 13px; letter-spacing: .08em; }
+h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: .02em; }
+h2 { margin: 0; font-size: 13px; font-weight: 500; color: var(--muted); letter-spacing: .1em; }
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.row-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.aside { font-size: 12px; color: var(--muted); }
+button { font-family: inherit; cursor: pointer; }
+:is(button, input, select, summary, textarea):focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+.banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--ink); border-radius: 6px; background: var(--surface); color: var(--ink); font-size: 14px; text-align: left; width: 100%; }
+
+/* timer */
+.timer {
+  --cur: var(--c-es);
+  background: var(--surface);
+  background: color-mix(in srgb, var(--cur) 9%, var(--surface));
+  border: 1px solid var(--line);
+  border-color: color-mix(in srgb, var(--cur) 40%, var(--line));
+  border-radius: 8px; padding: 14px 14px 16px;
+  display: flex; flex-direction: column; gap: 14px;
+  touch-action: pan-y; -webkit-user-select: none; user-select: none;
+  transition: background-color .25s, border-color .25s;
+}
+.tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.tab { --c: var(--c-es); font-size: 13px; padding: 7px 2px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; display: flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; min-width: 0; }
+.tab .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); flex: none; }
+.tab[aria-selected="true"] { background: var(--c); border-color: var(--c); color: var(--on-c); font-weight: 700; }
+.tab[aria-selected="true"] .dot { background: var(--on-c); }
+@media (max-width: 420px) { .tab { font-size: 12.5px; } .tab .dot { display: none; } }
+.face { text-align: center; display: flex; flex-direction: column; gap: 2px; padding-block: 4px; }
+.now { margin: 0; font-size: 20px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 14px; }
+.now .arrow { color: var(--muted); font-weight: 400; font-size: 20px; background: none; border: 0; padding: 0 8px; }
+.clock { font-family: var(--font-num); font-weight: 500; font-size: clamp(44px, 15vw, 68px); line-height: 1.05; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.timer.running .clock { color: var(--cur); }
+.state { margin: 0; font-size: 12.5px; color: var(--muted); display: flex; align-items: center; justify-content: center; gap: 6px; }
+.timer.running .state { color: var(--cur); font-weight: 500; }
+.pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--cur); animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .25; } }
+.face.in-l { animation: inL .22s ease-out; }
+.face.in-r { animation: inR .22s ease-out; }
+@keyframes inL { from { transform: translateX(28px); opacity: .3; } }
+@keyframes inR { from { transform: translateX(-28px); opacity: .3; } }
+.primary { font-size: 17px; font-weight: 700; padding: 16px; border: 0; border-radius: 8px; background: var(--cur); color: var(--on-c); }
+.timer.running .primary { background: var(--ink); color: var(--bg); }
+.hint { margin: 0; font-size: 12.5px; color: var(--muted); min-height: 1.6em; text-align: center; }
+.hint:empty { display: none; }
+
+/* today */
+.today-total { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.today-total .big { font-family: var(--font-num); font-size: 34px; font-weight: 500; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.today-total .of { font-size: 13px; color: var(--muted); }
+.badge { font-size: 12px; font-weight: 700; color: var(--good); border: 1px solid var(--good); border-radius: 999px; padding: 1px 9px; }
+.goal { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.goal button { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--ink); font-size: 16px; line-height: 1; }
+.track { display: flex; gap: 2px; height: 10px; background: var(--line); border-radius: 5px; overflow: hidden; margin-top: 8px; }
+.track i { display: block; height: 100%; transition: width .3s; }
+.breakdown { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: 13px; }
+.breakdown span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 10px; height: 10px; border-radius: 2px; flex: none; display: inline-block; }
+
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.stat { padding: 12px 6px; text-align: center; min-width: 0; }
+.stat + .stat { border-left: 1px solid var(--line); }
+.stat b { display: block; font-family: var(--font-num); font-weight: 500; font-size: 20px; font-variant-numeric: tabular-nums; }
+.stat span { font-size: 12px; color: var(--muted); }
+
+/* chart */
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; margin-bottom: 10px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.plot { position: relative; display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; height: 170px; }
+.col { display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; height: 100%; min-width: 0; padding-inline: 3px; border-radius: 4px 4px 0 0; }
+.col.we { background: var(--weekend); }
+.col .v { font-family: var(--font-num); font-size: 11px; color: var(--muted); height: 18px; text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.col.today .v { color: var(--ink); font-weight: 600; }
+.stack { display: flex; flex-direction: column-reverse; gap: 1px; border-radius: 3px 3px 0 0; overflow: hidden; }
+.stack i { display: block; flex: 1 1 0; min-height: 2px; }
+.goalline { position: absolute; left: 0; right: 0; border-top: 1.5px dashed var(--muted); pointer-events: none; }
+.days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; border-top: 1px solid var(--line); }
+.dl { text-align: center; font-size: 12px; color: var(--muted); padding-top: 4px; line-height: 1.3; }
+.dl small { display: block; font-family: var(--font-num); font-size: 10.5px; }
+.dl.we { background: var(--weekend); border-radius: 0 0 4px 4px; padding-bottom: 3px; }
+.dl.today { color: var(--ink); font-weight: 700; }
+
+/* weekly review */
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 2px; }
+.seg button { font-size: 12.5px; padding: 4px 12px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); }
+.seg button[aria-selected="true"] { background: var(--ink); color: var(--bg); font-weight: 700; }
+.fb { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.fb .range { font-size: 12px; color: var(--muted); margin: 0; }
+.fb h3 { margin: 0; font-size: 17px; font-weight: 700; font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.fb dl { display: grid; grid-template-columns: 7.4em 1fr; gap: 8px 12px; margin: 0; font-size: 14px; }
+.fb dt { font-size: 12px; color: var(--muted); padding-top: 2px; }
+.fb dd { margin: 0; min-width: 0; }
+.fb dd.next { font-weight: 700; }
+.mix { display: flex; height: 8px; border-radius: 4px; overflow: hidden; gap: 2px; }
+.mix i { display: block; height: 100%; }
+.fb-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.ghost { font-size: 14px; padding: 9px 14px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--ink); }
+.empty { color: var(--muted); font-size: 13.5px; margin: 0; }
+.fbnote { text-align: left; margin-top: 8px; }
+
+/* log */
+.log { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.log li { display: grid; grid-template-columns: auto auto 1fr auto auto; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.log .time { font-family: var(--font-num); font-size: 12.5px; color: var(--muted); }
+.log .dur { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.del { font-size: 12.5px; border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 4px; padding: 3px 8px; }
+.del.confirm { color: var(--c-men); border-color: var(--c-men); }
+.fold { margin-top: 14px; font-size: 14px; }
+.fold summary { cursor: pointer; }
+.manual { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.manual input, .manual select { font: inherit; font-size: 16px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink); }
+.manual input { width: 5em; }
+.backup { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.backup textarea { font-family: var(--font-num); font-size: 16px; width: 100%; min-height: 90px; padding: 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--ink); resize: vertical; }
+.backup .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.status { font-size: 12px; color: var(--muted); margin: 0; }
+@media (prefers-reduced-motion: reduce) { .face.in-l, .face.in-r, .pulse { animation: none; } .timer, .track i { transition: none; } }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <p class="eyebrow" id="dateLabel"></p>
+    <h1>就活ログ</h1>
+  </header>
+
+  <button type="button" class="banner" id="banner" hidden></button>
+
+  <section class="timer" id="timer" aria-label="ストップウォッチ">
+    <div class="tabs" id="tabs" role="tablist" aria-label="何をやるか"></div>
+    <div class="face" id="face">
+      <p class="now"><button type="button" class="arrow" id="prevCat" aria-label="前のカテゴリ">‹</button><span id="nowLabel">ES</span><button type="button" class="arrow" id="nextCat" aria-label="次のカテゴリ">›</button></p>
+      <div class="clock" id="clock" role="timer">00:00:00</div>
+      <p class="state" id="stateLabel">左右にスワイプで切り替え</p>
+    </div>
+    <button class="primary" id="toggle" type="button">計測を開始</button>
+    <p class="hint" id="note" aria-live="polite"></p>
+  </section>
+
+  <section aria-labelledby="hToday">
+    <div class="row-head">
+      <h2 id="hToday">今日</h2>
+      <div class="goal">
+        <button type="button" id="goalMinus" aria-label="目標を15分減らす">−</button>
+        <span>1日の目標</span>
+        <button type="button" id="goalPlus" aria-label="目標を15分増やす">＋</button>
+      </div>
+    </div>
+    <div class="today-total"><span class="big" id="todayTotal">0:00</span><span class="of">/ 目標 <span id="goalLabel" class="num">2:00</span></span><span class="badge" id="badge" hidden>達成</span></div>
+    <div class="track" id="track" aria-hidden="true"></div>
+    <div class="breakdown" id="todayBreak"></div>
+  </section>
+
+  <section class="stats" aria-label="サマリー">
+    <div class="stat"><b id="sStreak">0日</b><span>連続日数</span></div>
+    <div class="stat"><b id="sWeek">0:00</b><span>直近7日の合計</span></div>
+    <div class="stat"><b id="sAvg">0:00</b><span>1日の平均</span></div>
+  </section>
+
+  <section aria-labelledby="hChart">
+    <div class="row-head"><h2 id="hChart">直近7日（時:分）</h2><span class="aside">点線は目標・網かけは土日</span></div>
+    <div class="legend" id="legend"></div>
+    <div class="plot" id="plot"></div>
+    <div class="days" id="days"></div>
+  </section>
+
+  <section aria-labelledby="hFb" id="fbSection">
+    <div class="row-head">
+      <h2 id="hFb">週のふりかえり</h2>
+      <div class="seg" role="tablist" aria-label="対象の週">
+        <button type="button" role="tab" id="wkPrev">先週</button>
+        <button type="button" role="tab" id="wkNow">今週</button>
+      </div>
+    </div>
+    <div id="fbBox"></div>
+    <div class="fb-actions" id="fbActions">
+      <button type="button" class="ghost" id="copyPrompt">Claudeに聞く文面をコピー</button>
+    </div>
+    <p class="hint fbnote" id="fbNote"></p>
+  </section>
+
+  <section aria-labelledby="hLog">
+    <div class="row-head"><h2 id="hLog">今日の記録</h2></div>
+    <ul class="log" id="log"></ul>
+    <p class="empty" id="logEmpty">まだ記録がない。計測を止めると、ここに並ぶ。</p>
+    <details class="fold">
+      <summary>測り忘れた分を手で追加</summary>
+      <div class="manual">
+        <select id="manDay" aria-label="日付"><option value="0">今日</option><option value="1">昨日</option><option value="2">一昨日</option></select>
+        <span>に</span>
+        <input type="number" id="manMin" min="1" max="720" value="30" inputmode="numeric" aria-label="分数">
+        <span>分、選択中のカテゴリで</span>
+        <button type="button" class="ghost" id="manAdd">追加</button>
+      </div>
+    </details>
+    <details class="fold">
+      <summary>バックアップと復元</summary>
+      <div class="backup">
+        <p class="empty">記録はこのiPhoneの中だけにある。ホーム画面のアイコンを消すと記録も消えるので、ときどきコピーしてメモ帳などに残しておく。</p>
+        <div class="row"><button type="button" class="ghost" id="bkCopy">バックアップをコピー</button></div>
+        <textarea id="bkText" aria-label="復元するデータ" placeholder="コピーしたバックアップをここに貼り付ける"></textarea>
+        <div class="row"><button type="button" class="ghost" id="bkRestore">貼り付けた内容を取り込む</button></div>
+      </div>
+    </details>
+  </section>
+
+  <p class="status" id="status">記録はこのiPhoneの中に保存される。通信がなくても使える。</p>
+</main>
+
+<script>
+(function () {
+  var CATS = [
+    { k: "es", label: "ES" },
+    { k: "test", label: "テスト対策" },
+    { k: "men", label: "面接対策" },
+    { k: "kig", label: "企業研究" }
+  ];
+  var LABEL = {}; CATS.forEach(function (c) { LABEL[c.k] = c.label; });
+  var WD = ["日", "月", "火", "水", "木", "金", "土"];
+  var $ = function (id) { return document.getElementById(id); };
+  var pad = function (n) { return String(n).padStart(2, "0"); };
+  var keyOf = function (d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); };
+  var hm = function (s) { var m = Math.round(s / 60); return Math.floor(m / 60) + ":" + pad(m % 60); };
+  var hms = function (s) { return pad(Math.floor(s / 3600)) + ":" + pad(Math.floor(s % 3600 / 60)) + ":" + pad(s % 60); };
+  var mins = function (s) { return Math.round(s / 60); };
+  var md = function (d) { return (d.getMonth() + 1) + "/" + d.getDate(); };
+  var mdw = function (d) { return md(d) + "（" + WD[d.getDay()] + "）"; };
+  var idx = function (k) { for (var i = 0; i < CATS.length; i++) if (CATS[i].k === k) return i; return 0; };
+  var el = function (tag, cls) { var e = document.createElement(tag); if (cls) e.className = cls; return e; };
+  var dayOff = function (base, n) { return new Date(base.getFullYear(), base.getMonth(), base.getDate() + n); };
+  var weekStart = function (d) { return dayOff(d, -((d.getDay() + 6) % 7)); };
+  var isWe = function (d) { return d.getDay() === 0 || d.getDay() === 6; };
+  var cv = function (k) { return "var(--c-" + k + ")"; };
+
+  var S = { sessions: [], goalMin: 120, sel: "es", run: null, pendingDel: null, week: "prev", restoreArmed: false };
+
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } }
+  function lsJSON(k, f) { try { var v = lsGet(k); return v ? JSON.parse(v) : f; } catch (e) { return f; } }
+  function note(m) { $("note").textContent = m; }
+
+  // ---------- data ----------
+  function save() {
+    if (!lsSet("sk-sessions", JSON.stringify(S.sessions))) note("保存できなかった。プライベートブラウズでは記録が残らない。");
+  }
+  function saveRun() { lsSet("sk-run", JSON.stringify(S.run)); }
+  function mk(start, dur, cat, date) {
+    return { id: start + "-" + Math.random().toString(36).slice(2, 7), start: start, dur: dur, cat: cat, date: date || keyOf(new Date(start)) };
+  }
+  function addSession(s) { S.sessions.push(s); save(); render(); }
+  function removeSession(id) { S.sessions = S.sessions.filter(function (s) { return s.id !== id; }); save(); render(); }
+  function perDayCat() {
+    var m = {};
+    S.sessions.forEach(function (s) { var d = m[s.date] || (m[s.date] = {}); d[s.cat] = (d[s.cat] || 0) + s.dur; });
+    return m;
+  }
+  function dayTotal(c) { var t = 0; for (var k in c) t += c[k]; return t; }
+  function elapsed() { return S.run ? Math.max(0, Math.floor((Date.now() - S.run.start) / 1000)) : 0; }
+  function lastDays(n) {
+    var out = [], pdc = perDayCat(), now = new Date();
+    for (var i = n - 1; i >= 0; i--) {
+      var d = dayOff(now, -i), k = keyOf(d);
+      out.push({ d: d, key: k, cats: pdc[k] || {}, sec: dayTotal(pdc[k] || {}), isToday: i === 0, we: isWe(d) });
+    }
+    return out;
+  }
+
+  // ---------- timer ----------
+  function startRun() { S.run = { start: Date.now(), cat: S.sel }; saveRun(); }
+  function stopRun() {
+    var r = S.run; S.run = null; saveRun();
+    var dur = Math.floor((Date.now() - r.start) / 1000);
+    if (dur < 60) { note("1分未満だったので記録しなかった。"); return; }
+    addSession(mk(r.start, dur, r.cat));
+    note(LABEL[r.cat] + " を " + hm(dur) + " 記録した。");
+  }
+  function switchCat(k, dir) {
+    if (k === S.sel) return;
+    if (S.run) {
+      var dur = elapsed();
+      if (dur >= 60) {
+        addSession(mk(S.run.start, dur, S.run.cat));
+        note(LABEL[S.run.cat] + " の " + hm(dur) + " を記録して、" + LABEL[k] + " に切り替えた。");
+        S.run = { start: Date.now(), cat: k };
+      } else { S.run.cat = k; }
+      saveRun();
+    }
+    S.sel = k; lsSet("sk-sel", k);
+    var f = $("face"); f.classList.remove("in-l", "in-r"); void f.offsetWidth; f.classList.add(dir > 0 ? "in-l" : "in-r");
+    if (navigator.vibrate) { try { navigator.vibrate(10); } catch (e) {} }
+    renderTabs(); applyCat(); tick();
+  }
+  function step(d) { var n = (idx(S.sel) + d + CATS.length) % CATS.length; switchCat(CATS[n].k, d); }
+
+  var sw = null, suppress = 0, timerEl = $("timer");
+  timerEl.addEventListener("pointerdown", function (e) { if (e.pointerType === "mouse" && e.button !== 0) return; sw = { x: e.clientX, y: e.clientY }; });
+  timerEl.addEventListener("pointerup", function (e) {
+    if (!sw) return;
+    var dx = e.clientX - sw.x, dy = e.clientY - sw.y; sw = null;
+    if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.4) { suppress = Date.now(); step(dx < 0 ? 1 : -1); }
+  });
+  timerEl.addEventListener("pointercancel", function () { sw = null; });
+  var swiped = function () { return Date.now() - suppress < 400; };
+
+  $("toggle").onclick = function () {
+    if (swiped()) return;
+    if (!S.run) { startRun(); note(""); } else stopRun();
+    tick();
+  };
+  $("prevCat").onclick = function () { if (!swiped()) step(-1); };
+  $("nextCat").onclick = function () { if (!swiped()) step(1); };
+  $("tabs").addEventListener("keydown", function (e) {
+    if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+      e.preventDefault(); step(e.key === "ArrowRight" ? 1 : -1);
+      var b = $("tabs").querySelector('[aria-selected="true"]'); if (b) b.focus();
+    }
+  });
+  function setGoal(g) { S.goalMin = Math.max(15, Math.min(720, g)); lsSet("sk-goal", String(S.goalMin)); render(); }
+  $("goalMinus").onclick = function () { setGoal(S.goalMin - 15); };
+  $("goalPlus").onclick = function () { setGoal(S.goalMin + 15); };
+  $("manAdd").onclick = function () {
+    var m = parseInt($("manMin").value, 10), back = parseInt($("manDay").value, 10);
+    if (!(m >= 1 && m <= 720)) { note("1〜720分の範囲で入れてほしい。"); return; }
+    var day = dayOff(new Date(), -back);
+    var start = back ? new Date(day.getFullYear(), day.getMonth(), day.getDate(), 12).getTime() : Date.now() - m * 60000;
+    addSession(mk(start, m * 60, S.sel, keyOf(day)));
+    note(["今日", "昨日", "一昨日"][back] + "に " + LABEL[S.sel] + " を " + m + "分 追加した。");
+  };
+
+  // ---------- render ----------
+  function renderTabs() {
+    var t = $("tabs"); t.innerHTML = "";
+    CATS.forEach(function (c) {
+      var b = el("button", "tab"); b.type = "button";
+      b.setAttribute("role", "tab"); b.setAttribute("aria-selected", String(c.k === S.sel));
+      b.tabIndex = c.k === S.sel ? 0 : -1;
+      b.style.setProperty("--c", cv(c.k));
+      var dot = el("span", "dot"), tx = el("span"); tx.textContent = c.label;
+      b.appendChild(dot); b.appendChild(tx);
+      b.onclick = function () { if (!swiped()) switchCat(c.k, idx(c.k) > idx(S.sel) ? 1 : -1); };
+      t.appendChild(b);
+    });
+  }
+  function applyCat() { timerEl.style.setProperty("--cur", cv(S.sel)); $("nowLabel").textContent = LABEL[S.sel]; }
+
+  function tick() {
+    var running = !!S.run, e = elapsed();
+    timerEl.classList.toggle("running", running);
+    $("clock").textContent = hms(e);
+    var st = $("stateLabel"); st.innerHTML = "";
+    if (running) { st.appendChild(el("span", "pulse")); st.appendChild(document.createTextNode("計測中・スワイプすると続けたまま切り替わる")); }
+    else st.textContent = "左右にスワイプで切り替え";
+    $("toggle").textContent = running ? "停止して記録" : LABEL[S.sel] + " の計測を開始";
+
+    var tc = Object.assign({}, perDayCat()[keyOf(new Date())] || {});
+    if (running) tc[S.run.cat] = (tc[S.run.cat] || 0) + e;
+    var tot = dayTotal(tc), goal = S.goalMin * 60, denom = Math.max(goal, tot);
+    $("todayTotal").textContent = hm(tot);
+    $("goalLabel").textContent = hm(goal);
+    $("badge").hidden = tot < goal;
+    var tr = $("track"), br = $("todayBreak"); tr.innerHTML = ""; br.innerHTML = "";
+    CATS.forEach(function (c) {
+      if (!tc[c.k]) return;
+      var i = el("i"); i.style.width = (tc[c.k] / denom * 100) + "%"; i.style.background = cv(c.k); tr.appendChild(i);
+      var sp = el("span"), swb = el("i", "sw"), tx = el("span", "num");
+      swb.style.background = cv(c.k); tx.textContent = hm(tc[c.k]);
+      sp.appendChild(swb); sp.appendChild(document.createTextNode(c.label + " ")); sp.appendChild(tx); br.appendChild(sp);
+    });
+    if (!tot) { var p = el("span"); p.style.color = "var(--muted)"; p.textContent = "まだ0分。1本目を始めよう。"; br.appendChild(p); }
+  }
+
+  function renderChart() {
+    var days = lastDays(7);
+    var max = Math.max(S.goalMin * 60, Math.max.apply(null, days.map(function (d) { return d.sec; }))) * 1.12;
+    var plot = $("plot"), row = $("days"); plot.innerHTML = ""; row.innerHTML = "";
+    days.forEach(function (d) {
+      var col = el("div", "col" + (d.we ? " we" : "") + (d.isToday ? " today" : ""));
+      var v = el("div", "v"); v.textContent = d.sec ? hm(d.sec) : "";
+      var st = el("div", "stack"); st.style.height = "calc((100% - 18px) * " + (d.sec / max).toFixed(4) + ")";
+      CATS.forEach(function (c) {
+        var s = d.cats[c.k] || 0; if (!s) return;
+        var seg = el("i"); seg.style.background = cv(c.k); seg.style.flexGrow = s; seg.title = c.label + " " + hm(s);
+        st.appendChild(seg);
+      });
+      col.appendChild(v); col.appendChild(st); plot.appendChild(col);
+      var lab = el("div", "dl" + (d.we ? " we" : "") + (d.isToday ? " today" : ""));
+      lab.textContent = d.isToday ? "今日" : WD[d.d.getDay()];
+      var sm = el("small"); sm.textContent = md(d.d); lab.appendChild(sm);
+      row.appendChild(lab);
+    });
+    var gl = el("div", "goalline"); gl.style.bottom = "calc((100% - 18px) * " + (S.goalMin * 60 / max).toFixed(4) + ")";
+    plot.appendChild(gl);
+
+    var total = days.reduce(function (a, d) { return a + d.sec; }, 0);
+    $("sWeek").textContent = hm(total);
+    $("sAvg").textContent = hm(total / 7);
+    var pdc = perDayCat(), streak = 0, d0 = new Date();
+    if (!dayTotal(pdc[keyOf(d0)] || {})) d0 = dayOff(d0, -1);
+    while (dayTotal(pdc[keyOf(d0)] || {}) > 0) { streak++; d0 = dayOff(d0, -1); }
+    $("sStreak").textContent = streak + "日";
+  }
+
+  function renderLegend() {
+    var lg = $("legend"); lg.innerHTML = "";
+    CATS.forEach(function (c) { var s = el("span"), b = el("i", "sw"); b.style.background = cv(c.k); s.appendChild(b); s.appendChild(document.createTextNode(c.label)); lg.appendChild(s); });
+  }
+
+  function renderLog() {
+    var tk = keyOf(new Date());
+    var todays = S.sessions.filter(function (s) { return s.date === tk; }).sort(function (a, b) { return b.start - a.start; });
+    var lg = $("log"); lg.innerHTML = "";
+    $("logEmpty").hidden = todays.length > 0;
+    todays.forEach(function (s) {
+      var li = el("li"), st = new Date(s.start);
+      var a = el("span", "time"); a.textContent = pad(st.getHours()) + ":" + pad(st.getMinutes());
+      var sw2 = el("i", "sw"); sw2.style.background = cv(s.cat);
+      var b = el("span"); b.textContent = LABEL[s.cat] || s.cat;
+      var c = el("span", "dur"); c.textContent = hm(s.dur);
+      var x = el("button", "del" + (S.pendingDel === s.id ? " confirm" : "")); x.type = "button";
+      x.textContent = S.pendingDel === s.id ? "削除する" : "削除";
+      x.onclick = function () { if (S.pendingDel === s.id) { S.pendingDel = null; removeSession(s.id); } else { S.pendingDel = s.id; renderLog(); } };
+      [a, sw2, b, c, x].forEach(function (n) { li.appendChild(n); });
+      lg.appendChild(li);
+    });
+  }
+
+  // ---------- weekly review (端末内で自動生成) ----------
+  function weekStats(ws, partial) {
+    var pdc = perDayCat(), tk = keyOf(new Date()), days = [], cat = {}, prev = 0;
+    for (var i = 0; i < 7; i++) {
+      var d = dayOff(ws, i), k = keyOf(d);
+      if (partial && k > tk) break;
+      var c = pdc[k] || {};
+      days.push({ d: d, k: k, c: c, sec: dayTotal(c), we: isWe(d) });
+    }
+    CATS.forEach(function (x) { cat[x.k] = days.reduce(function (a, d) { return a + (d.c[x.k] || 0); }, 0); });
+    for (i = 0; i < 7; i++) prev += dayTotal(pdc[keyOf(dayOff(ws, i - 7))] || {});
+    var avg = function (arr) { return arr.length ? arr.reduce(function (a, d) { return a + d.sec; }, 0) / arr.length : null; };
+    var wd = days.filter(function (d) { return !d.we; }), we = days.filter(function (d) { return d.we; });
+    return {
+      days: days, cat: cat, prev: prev,
+      tot: days.reduce(function (a, d) { return a + d.sec; }, 0),
+      wdAvg: avg(wd), weAvg: avg(we),
+      zero: days.filter(function (d) { return d.sec === 0; }),
+      hit: days.filter(function (d) { return d.sec >= S.goalMin * 60; })
+    };
+  }
+
+  function review(ws, partial) {
+    var s = weekStats(ws, partial);
+    if (!s.tot) return null;
+    var byCat = CATS.slice().sort(function (a, b) { return s.cat[a.k] - s.cat[b.k]; });
+    var least = byCat[0], most = byCat[byCat.length - 1];
+    var diff = s.tot - s.prev, n = s.days.length;
+    var when = partial ? "今週の残りで" : "来週は";
+    var r = { stats: s };
+    r.headline = "合計 " + hm(s.tot) + (s.prev ? "（前週比 " + (diff >= 0 ? "+" : "−") + hm(Math.abs(diff)) + "）" : "");
+
+    if (s.hit.length > 0 && s.hit.length >= Math.min(4, n)) r.good = "目標に届いた日が" + n + "日中" + s.hit.length + "日ある。習慣になってきている。";
+    else if (s.prev && diff > 0) r.good = "前週より" + mins(diff) + "分増えた。積み上げの向きは合っている。";
+    else {
+      var best = s.days.slice().sort(function (a, b) { return b.sec - a.sec; })[0];
+      r.good = "いちばん多かったのは" + mdw(best.d) + "の" + hm(best.sec) + "。この日の過ごし方が基準になる。";
+    }
+
+    if (s.zero.length >= 2) {
+      r.issue = "0分の日が" + s.zero.length + "日ある（" + s.zero.map(function (d) { return WD[d.d.getDay()]; }).join("・") + "）。間が空くと再開が重くなる。";
+      r.next = "0分の日を作らない。忙しい日も" + least.label + "を15分だけやる。";
+    } else if (s.weAvg !== null && s.wdAvg && s.weAvg < s.wdAvg * 0.5) {
+      r.issue = "土日の平均" + mins(s.weAvg) + "分は、平日の平均" + mins(s.wdAvg) + "分の半分に届いていない。";
+      r.next = (partial ? "今週の" : "来週の") + "土曜と日曜、午前に" + least.label + "を60分ずつ入れる。";
+    } else if (s.cat[least.k] === 0) {
+      r.issue = least.label + "が0分だ。" + most.label + "に偏っている。";
+      r.next = when + least.label + "を30分ずつ2回入れる。";
+    } else if (s.cat[least.k] < s.tot * 0.1) {
+      r.issue = least.label + "が全体の" + Math.round(s.cat[least.k] / s.tot * 100) + "%しかない。";
+      r.next = when + least.label + "を30分ずつ2回入れる。";
+    } else if (n >= 3 && s.hit.length <= Math.floor(n / 3)) {
+      r.issue = "目標" + hm(S.goalMin * 60) + "に届いた日は" + n + "日中" + s.hit.length + "日だけだ。";
+      r.next = "目標を15分下げて届く日を増やすか、平日の夜に30分足すか。どちらか一方に決める。";
+    } else if (s.prev && diff < 0) {
+      r.issue = "前週より" + mins(-diff) + "分減った。";
+      r.next = "減った分を取り戻すため、" + least.label + "を30分ずつ2回足す。";
+    } else {
+      r.issue = "大きな穴はない。量は足りている。";
+      r.next = "次は中身を見る。" + most.label + "でやったことを1行ずつメモし、週末に見返す。";
+    }
+    return r;
+  }
+
+  function claudePrompt(ws, partial) {
+    var s = weekStats(ws, partial);
+    var lines = s.days.map(function (d) {
+      return mdw(d.d) + " " + CATS.map(function (x) { return x.label + " " + mins(d.c[x.k] || 0); }).join(", ") + " ／ 合計 " + mins(d.sec);
+    });
+    return [
+      "28卒の就活生（電気電子工学専攻）の、" + (partial ? "今週（月曜はじまり）の今日まで" : "先週（月〜日）") + "の就活時間の記録だ。単位は分。1日の目標は" + S.goalMin + "分。",
+      "",
+      lines.join("\n"),
+      "",
+      "週合計 " + mins(s.tot) + "分（前週 " + mins(s.prev) + "分）",
+      "",
+      "平日と土日の差、0分の日、カテゴリの偏り、前週との増減を数字を根拠に率直に評価してほしい。",
+      "「良かった点」「いちばんの課題」「" + (partial ? "今週の残りでやること" : "来週やること") + "（曜日・時間・カテゴリ入りで1つ）」を、だ・である調で短く。"
+    ].join("\n");
+  }
+
+  function currentWeek() {
+    var ws = weekStart(new Date());
+    return S.week === "prev" ? { ws: dayOff(ws, -7), partial: false } : { ws: ws, partial: true };
+  }
+
+  function renderFb() {
+    $("wkPrev").setAttribute("aria-selected", String(S.week === "prev"));
+    $("wkNow").setAttribute("aria-selected", String(S.week === "now"));
+    var w = currentWeek(), r = review(w.ws, w.partial), box = $("fbBox");
+    box.innerHTML = "";
+    $("fbActions").hidden = !r;
+    if (!r) {
+      var p = el("p", "empty");
+      p.textContent = S.week === "prev"
+        ? "先週の記録がない。記録が1週間たまると、月曜にここで振り返りが出る。"
+        : "今週の記録はまだない。計測すると、今週ここまでの振り返りが出る。";
+      box.appendChild(p);
+      return;
+    }
+    var card = el("div", "fb");
+    var range = el("p", "range");
+    range.textContent = mdw(w.ws) + "〜" + mdw(dayOff(w.ws, 6)) + (w.partial ? "・今日まで" : "");
+    var h = el("h3"); h.textContent = r.headline;
+    var mix = el("div", "mix");
+    CATS.forEach(function (c) { var v = r.stats.cat[c.k]; if (!v) return; var i = el("i"); i.style.background = cv(c.k); i.style.flexGrow = v; i.title = c.label + " " + hm(v); mix.appendChild(i); });
+    var dl = el("dl");
+    [["良かった点", r.good, ""], ["課題", r.issue, ""], [w.partial ? "残りでやること" : "来週やること", r.next, "next"]].forEach(function (row) {
+      var dt = el("dt"); dt.textContent = row[0];
+      var dd = el("dd", row[2]); dd.textContent = row[1];
+      dl.appendChild(dt); dl.appendChild(dd);
+    });
+    card.appendChild(range); card.appendChild(h); card.appendChild(mix); card.appendChild(dl);
+    box.appendChild(card);
+  }
+  $("wkPrev").onclick = function () { S.week = "prev"; $("fbNote").textContent = ""; renderFb(); };
+  $("wkNow").onclick = function () { S.week = "now"; $("fbNote").textContent = ""; renderFb(); };
+
+  function copyText(text, okMsg, target) {
+    var done = function () { target.textContent = okMsg; };
+    var fallback = function () {
+      var ta = $("bkText"); ta.value = text; ta.focus(); ta.select();
+      try { document.execCommand("copy"); done(); } catch (e) { target.textContent = "自動でコピーできなかった。下の欄の文字を長押しでコピーしてほしい。"; }
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback);
+    else fallback();
+  }
+  $("copyPrompt").onclick = function () {
+    var w = currentWeek();
+    copyText(claudePrompt(w.ws, w.partial), "コピーした。Claudeのアプリに貼り付けて送れば、詳しいFBが返ってくる。", $("fbNote"));
+  };
+
+  // 新しい週になったら、先週のふりかえりを知らせる
+  function renderBanner() {
+    var pws = dayOff(weekStart(new Date()), -7), pk = keyOf(pws), bn = $("banner");
+    var has = weekStats(pws, false).tot > 0;
+    bn.hidden = !(has && lsGet("sk-seenWeek") !== pk);
+    if (bn.hidden) return;
+    bn.innerHTML = "";
+    var t = el("span"); t.textContent = "先週（" + md(pws) + "〜" + md(dayOff(pws, 6)) + "）のふりかえりが出た";
+    var a = el("span"); a.textContent = "見る →";
+    bn.appendChild(t); bn.appendChild(a);
+    bn.onclick = function () {
+      lsSet("sk-seenWeek", pk); S.week = "prev"; renderFb(); bn.hidden = true;
+      $("fbSection").scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+  }
+
+  // ---------- backup ----------
+  $("bkCopy").onclick = function () {
+    copyText(JSON.stringify({ app: "shukatsu-log", v: 1, goalMin: S.goalMin, sessions: S.sessions }), "バックアップをコピーした。メモ帳などに貼って残しておく。", $("note"));
+  };
+  $("bkRestore").onclick = function () {
+    var data;
+    try { data = JSON.parse($("bkText").value); } catch (e) { note("貼り付けた内容を読めなかった。バックアップの文字を全部貼り付けてほしい。"); return; }
+    if (!data || !Array.isArray(data.sessions)) { note("就活ログのバックアップではないようだ。"); return; }
+    if (!S.restoreArmed) { S.restoreArmed = true; $("bkRestore").textContent = "もう一度押すと取り込む（同じ記録は重ならない）"; return; }
+    S.restoreArmed = false; $("bkRestore").textContent = "貼り付けた内容を取り込む";
+    var have = {}; S.sessions.forEach(function (s) { have[s.id] = true; });
+    var added = 0;
+    data.sessions.forEach(function (s) {
+      if (s && s.id && !have[s.id] && LABEL[s.cat] && s.start && s.dur && s.date) { S.sessions.push(s); have[s.id] = true; added++; }
+    });
+    if (data.goalMin) S.goalMin = data.goalMin;
+    lsSet("sk-goal", String(S.goalMin)); save(); render();
+    $("bkText").value = "";
+    note(added + "件の記録を取り込んだ。");
+  };
+
+  function render() {
+    var now = new Date();
+    $("dateLabel").textContent = (now.getMonth() + 1) + "月" + now.getDate() + "日（" + WD[now.getDay()] + "）";
+    renderChart(); renderLog(); renderFb(); renderBanner(); tick();
+  }
+
+  // ---------- boot ----------
+  var s0 = lsGet("sk-sel"); if (s0 && LABEL[s0]) S.sel = s0;
+  S.run = lsJSON("sk-run", null);
+  if (S.run && !LABEL[S.run.cat]) S.run = null;
+  if (S.run) S.sel = S.run.cat;
+  var g = parseInt(lsGet("sk-goal") || "", 10); if (g) S.goalMin = g;
+  S.sessions = lsJSON("sk-sessions", []);
+  if (!weekStats(dayOff(weekStart(new Date()), -7), false).tot) S.week = "now";
+  renderTabs(); applyCat(); renderLegend(); render();
+  setInterval(tick, 1000);
+  // 日付が変わったまま開きっぱなしでも表示を合わせる
+  var lastDay = keyOf(new Date());
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") { if (keyOf(new Date()) !== lastDay) { lastDay = keyOf(new Date()); render(); } else tick(); }
+  });
+
+  if (navigator.storage && navigator.storage.persist) { try { navigator.storage.persist(); } catch (e) {} }
+  if ("serviceWorker" in navigator && location.protocol === "https:") {
+    window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
+  }
+})();
+</script>
+</body>
+</html>
